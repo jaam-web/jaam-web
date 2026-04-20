@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS de Objetos - Drive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans pb-20">
+
+    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10">
+        <div class="flex justify-between items-center max-w-2xl mx-auto">
+            <h1 class="font-bold text-lg">📍 Localizador Visual</h1>
+            <button id="auth_btn" onclick="handleAuthClick()" class="bg-blue-800 px-3 py-1 rounded text-sm">Conectar Drive</button>
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto p-4 space-y-6">
+
+        <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <label class="block text-sm font-medium text-slate-500 mb-2">¿Qué buscas?</label>
+            <div class="flex gap-2">
+                <input type="text" id="query" placeholder="Ej: Martillo, Taladro..." class="flex-1 bg-slate-100 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="buscarObjeto()" class="bg-blue-600 text-white px-6 rounded-xl font-bold">Buscar</button>
+            </div>
+            <button onclick="startVoice()" class="w-full mt-3 text-blue-600 text-sm font-medium flex items-center justify-center gap-2">
+                🎤 Dictar nombre
+            </button>
+        </section>
+
+        <section id="results_area" class="hidden space-y-4">
+            <h2 class="font-bold text-slate-700">Ruta Encontrada:</h2>
+            <div id="path_display" class="relative border-l-4 border-blue-400 ml-2 pl-6 space-y-6">
+                </div>
+        </section>
+
+        <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="font-bold mb-4">Guardar Nueva Ubicación</h2>
+            <div class="space-y-4">
+                <input type="text" id="new_item_name" placeholder="Nombre del objeto" class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <input type="text" id="new_item_zone" placeholder="Zona (Ej: Taller, Pasillo A)" class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200">
+                
+                <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-slate-50">
+                    <span class="text-slate-500 text-sm text-center">📷 Tocar para tomar foto del objeto en su sitio</span>
+                    <input type="file" id="file_input" accept="image/*" capture="camera" class="hidden" onchange="uploadFile()">
+                </label>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        /* CONFIGURACIÓN - RELLENA ESTO */
+        const CLIENT_ID = 'TU_CLIENT_ID_AQUÍ'; 
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+        let tokenClient;
+        let accessToken = null;
+
+        // Inicializar autenticación
+        function gapiLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: (tokenResponse) => {
+                    accessToken = tokenResponse.access_token;
+                    document.getElementById('auth_btn').innerText = "Conectado ✅";
+                },
+            });
+        }
+
+        window.onload = gapiLoaded;
+
+        function handleAuthClick() {
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        }
+
+        // Función para buscar en Drive
+        async function buscarObjeto() {
+            if (!accessToken) return alert("Primero conecta tu Google Drive");
+            const name = document.getElementById('query').value;
+            const pathDisplay = document.getElementById('path_display');
+            pathDisplay.innerHTML = "Buscando...";
+            document.getElementById('results_area').classList.remove('hidden');
+
+            // Buscar el archivo por nombre
+            const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=name contains '${name}' and mimeType contains 'image/'&fields=files(id, name, parents, thumbnailLink)`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const data = await response.json();
+
+            if (data.files.length > 0) {
+                pathDisplay.innerHTML = "";
+                for (let file of data.files) {
+                    // Obtener el nombre de la carpeta padre (La Zona)
+                    const parentId = file.parents[0];
+                    const parentResp = await fetch(`https://www.googleapis.com/drive/v3/files/${parentId}?fields=name`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    const parentData = await parentResp.json();
+
+                    pathDisplay.innerHTML += `
+                        <div class="space-y-2">
+                            <p class="text-xs font-bold text-blue-600 uppercase">📍 Ubicación: ${parentData.name}</p>
+                            <div class="bg-slate-200 rounded-xl h-40 flex items-center justify-center overflow-hidden">
+                                <img src="${file.thumbnailLink.replace('s220', 's1000')}" class="w-full h-full object-cover">
+                            </div>
+                            <p class="text-sm font-medium">Objeto: ${file.name}</p>
+                        </div>
+                    `;
+                }
+            } else {
+                pathDisplay.innerHTML = "No se encontró nada.";
+            }
+        }
+
+        // Subir archivo a Drive
+        async function uploadFile() {
+            if (!accessToken) return alert("Conecta Drive antes de guardar");
+            
+            const fileInput = document.getElementById('file_input');
+            const itemName = document.getElementById('new_item_name').value;
+            const zoneName = document.getElementById('new_item_zone').value;
+
+            if (!itemName || !zoneName) return alert("Escribe el nombre y la zona");
+
+            const file = fileInput.files[0];
+            
+            // 1. Crear carpeta de zona si no existe o buscarla
+            // (Para este MVP, subimos directo con metadata de nombre)
+            const metadata = {
+                name: `${itemName}.jpg`,
+                mimeType: 'image/jpeg'
+            };
+
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', file);
+
+            fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                body: form
+            }).then(res => res.json()).then(data => {
+                alert("Guardado en tu Drive: " + itemName);
+            });
+        }
+
+        function startVoice() {
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.onresult = (e) => {
+                document.getElementById('query').value = e.results[0][0].transcript;
+                buscarObjeto();
+            };
+            recognition.start();
+        }
+    </script>
+</body>
+  </html>
+  
