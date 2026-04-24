@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asistente 3D Mejorado</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; }
+        #container { width: 100vw; height: 100vh; }
+        
+        #ui {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+        }
+        
+        #mic-btn {
+            pointer-events: auto;
+            background: rgba(0, 200, 255, 0.1);
+            border: 2px solid rgba(0, 200, 255, 0.8);
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+            box-shadow: 0 0 15px rgba(0, 200, 255, 0.3);
+        }
+
+        #mic-btn:hover { transform: scale(1.1); background: rgba(0, 200, 255, 0.2); }
+        #mic-btn.active { 
+            background: rgba(255, 50, 50, 0.8); 
+            border-color: #ff3333; 
+            box-shadow: 0 0 20px rgba(255, 50, 50, 0.8);
+        }
+
+        #text-output {
+            color: #00d2ff;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            text-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
+            min-height: 1.5em;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #555;
+            font-family: monospace;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container"></div>
+    <div id="status">Sistema Iniciado</div>
+    
+    <div id="ui">
+        <div id="text-output">Habla para interactuar.</div>
+        <button id="mic-btn">
+            <!-- Icono de Microfono SVG -->
+            <svg viewBox="0 0 24 24" width="35" height="35" fill="white" style="margin-top: 8px; opacity: 0.9;">
+                <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Librerias -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <script>
+        // --- 1. CONFIGURACIÓN DE ESCENA ---
+        const container = document.getElementById('container');
+        const textOutput = document.getElementById('text-output');
+        const statusDiv = document.getElementById('status');
+        const micBtn = document.getElementById('mic-btn');
+
+        let scene, camera, renderer, model, mixer, clock;
+        let actions = {}; // Aqui guardaremos las animaciones: Idle, Wave, Yes, No, etc.
+        let currentAction = null;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050505);
+            
+            // Niebla para dar profundidad
+            scene.fog = new THREE.Fog(0x050505, 5, 15);
+
+            // Cámara más alejada para ver el cuerpo completo
+            camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.2, 9.5); // Más lejos (Z=10) y un poco arriba
+
+            // Luces
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            // Luz principal suave
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 7.5);
+            scene.add(dirLight);
+
+            // Luces de color ambiente (Estilo Sci-Fi)
+            const blueLight = new THREE.PointLight(0x0066ff, 1, 10);
+            blueLight.position.set(-3, 2, 4);
+            scene.add(blueLight);
+
+            // Suelo reflectante simple
+            const gridHelper = new THREE.GridHelper(20, 40, 0x111111, 0x111111);
+            scene.add(gridHelper);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Cargar Modelo (Robot Expressivo)
+            const loader = new THREE.GLTFLoader();
+            
+            loader.load('https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb', function (gltf) {
+                
+                model = gltf.scene;
+                model.scale.set(0.8, 0.8, 0.8); // Escala ajustada
+                model.position.y = 0; // En el suelo
+                scene.add(model);
+
+                // Configurar Animaciones
+                mixer = new THREE.AnimationMixer(model);
+                
+                // Mapear animaciones del archivo a nombres fáciles
+                gltf.animations.forEach((clip) => {
+                    if(clip.name === 'Idle') actions.idle = mixer.clipAction(clip);
+                    if(clip.name === 'Wave') actions.wave = mixer.clipAction(clip);
+                    if(clip.name === 'Yes') actions.yes = mixer.clipAction(clip);
+                    if(clip.name === 'No') actions.no = mixer.clipAction(clip);
+                    if(clip.name === 'Dance') actions.dance = mixer.clipAction(clip);
+                    if(clip.name === 'Walking') actions.walk = mixer.clipAction(clip);
+                    if(clip.name === 'Running') actions.run = mixer.clipAction(clip);
+                    if(clip.name === 'ThumbsUp') actions.thumbsUp = mixer.clipAction(clip);
+                });
+
+                // Iniciar en estado Idle (Quieto)
+                if(actions.idle) {
+                    actions.idle.play();
+                    currentAction = actions.idle;
+                }
+                
+                statusDiv.innerText = "Listo";
+                statusDiv.style.color = "#0ff";
+
+            }, undefined, function (e) {
+                console.error(e);
+            });
+
+            clock = new THREE.Clock();
+            animate();
+        }
+
+        // Función para cambiar animaciones con fundido suave
+        function fadeToAction(name, duration = 0.2, loop = THREE.LoopOnce) {
+            if (!actions[name] || currentAction === actions[name]) return;
+
+            const newAction = actions[name];
+            
+            // Configurar bucle
+            newAction.loop = loop;
+            if (loop === THREE.LoopOnce) {
+                newAction.clampWhenFinished = true; // Quedarse quieto al terminar
+            }
+
+            newAction.reset();
+            newAction.setEffectiveTimeScale(1);
+            newAction.setEffectiveWeight(1);
+            newAction.fadeIn(duration);
+
+            if (currentAction) {
+                currentAction.fadeOut(duration);
+            }
+
+            newAction.play();
+            currentAction = newAction;
+
+            // Si es una acción de una sola vez (como saludar), volver a Idle al terminar
+            if (loop === THREE.LoopOnce) {
+                // Duración de la animación + un pequeño margen
+                const returnTime = newAction.getClip().duration * 1000;
+                setTimeout(() => {
+                    fadeToAction('idle', 0.5, THREE.LoopRepeat);
+                }, returnTime + 100);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
+            renderer.render(scene, camera);
+        }
+
+        init();
+
+        // --- 2. CEREBRO OFFLINE Y COMANDOS ---
+        
+        function processInput(text) {
+            text = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+            // 1. Detectar Acciones Específicas
+            if (text.includes("hola") || text.includes("buenas")) {
+                return { text: "Hola! Un gusto verte.", action: "wave" };
+            }
+            if (text.includes("si") || text.includes("correcto") || text.includes("confirmar")) {
+                return { text: "Entendido, procedo.", action: "yes" };
+            }
+            if (text.includes("no") || text.includes("incorrecto") || text.includes("negativo")) {
+                return { text: "Cancelando operación.", action: "no" };
+            }
+            if (text.includes("baila") || text.includes("fiesta") || text.includes("celebracion")) {
+                return { text: "¡Iniciando rutina de baile!", action: "dance" };
+            }
+            if (text.includes("pulgar arriba") || text.includes("genial")) {
+                return { text: "¡Excelente!", action: "thumbsUp" };
+            }
+
+            // 2. Respuestas rápidas sin acción física compleja
+            if (text.includes("hora")) {
+                const now = new Date();
+                return { text: `Son las ${now.getHours()} y ${now.getMinutes()}.`, action: null };
+            }
+            if (text.includes("quien eres")) {
+                return { text: "Soy tu asistente virtual.", action: null };
+            }
+
+            // 3. Respuesta por defecto
+            return { text: "Comando no reconocido. Intenta decir Hola, Si, No o Baila.", action: null };
+        }
+
+        // --- 3. SISTEMA DE VOZ ---
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'es-ES';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                micBtn.classList.add('active');
+                textOutput.innerText = "Escuchando...";
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                
+                // Procesar respuesta
+                const response = processInput(transcript);
+                
+                // Mostrar lo que dijo el usuario brevemente y luego la respuesta
+                textOutput.innerText = response.text;
+
+                // EJECUTAR ACCION INMEDIATA
+                if(response.action) {
+                    fadeToAction(response.action);
+                }
+
+                // HABLAR
+                speak(response.text);
+            };
+
+            recognition.onerror = (event) => {
+                micBtn.classList.remove('active');
+                textOutput.innerText = "No escuché bien. Toca el botón de nuevo.";
+            };
+
+            recognition.onend = () => {
+                micBtn.classList.remove('active');
+            };
+
+            micBtn.addEventListener('click', () => {
+                // Si ya está hablando, detenerlo para escuchar nuevo comando
+                window.speechSynthesis.cancel();
+                recognition.start();
+            });
+
+        } else {
+            textOutput.innerText = "Navegador no compatible.";
+        }
+
+        // Función para hablar (TTS)
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            
+            // Intentar usar una voz del sistema
+            const voices = window.speechSynthesis.getVoices();
+            const spanishVoice = voices.find(v => v.lang.includes('es'));
+            if (spanishVoice) utterance.voice = spanishVoice;
+
+            utterance.rate = 1.1; // Un poco más rápido
+            
+            window.speechSynthesis.speak(utterance);
+        }
+
+        window.speechSynthesis.getVoices(); // Pre-cargar voces
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>
