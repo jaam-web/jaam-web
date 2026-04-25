@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reloj Simbólico Maestro - Responsivo</title>
+    <title>Calculadora de Bases Simbólicas</title>
     <style>
         :root {
             --primary: #00d8d6;
             --secondary: #ff5e57;
             --bg: #0d0d0d;
             --panel: #1e1e1e;
-            /* Tamaño base del reloj que escalará */
-            --reloj-size: min(80vw, 400px);
+            --text-muted: #a0a0a0;
+            --reloj-size: min(75vw, 380px);
         }
 
         * {
@@ -27,46 +27,82 @@
             background-color: var(--bg);
             color: #ffffff;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            padding: 10px;
+            padding: 15px;
             min-height: 100vh;
             overflow-x: hidden;
         }
 
         .header-info {
             text-align: center;
-            margin: 15px 0;
+            margin: 10px 0 20px 0;
         }
 
+        .header-info h2 {
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Configuración de Base con Botones */
         .config-panel {
             background: var(--panel);
             padding: 15px;
-            border-radius: 15px;
+            border-radius: 20px;
             margin-bottom: 20px;
             border: 1px solid #333;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
             width: 95%;
             max-width: 500px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
-        @media (min-width: 600px) {
-            .config-panel {
-                flex-direction: row;
-                justify-content: center;
-            }
+        .base-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
 
+        .btn-circle {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+        }
+
+        .btn-circle:active {
+            background: var(--primary);
+            color: #000;
+        }
+
+        #base-display {
+            font-size: 28px;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        /* Contenedor del Reloj */
         #reloj-container {
             position: relative;
             width: var(--reloj-size);
             height: var(--reloj-size);
-            border: 6px solid #2c3e50;
+            border: 8px solid #2c3e50;
             border-radius: 50%;
-            margin: 20px auto;
+            margin: 10px auto;
             background: radial-gradient(circle, #1a1a1a, #000000);
-            box-shadow: 0 0 40px rgba(0, 216, 214, 0.2);
+            box-shadow: 0 0 40px rgba(0, 216, 214, 0.15);
         }
 
         .simbolo {
@@ -76,48 +112,51 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(18px, 5vw, 28px);
+            font-size: clamp(16px, 4vw, 24px);
             color: #ecf0f1;
             transform: translate(-50%, -50%);
+            font-weight: bold;
         }
 
-        /* Agujas */
         .aguja {
             position: absolute;
             bottom: 50%;
             left: 50%;
             transform-origin: bottom center;
-            border-radius: 4px;
-            transition: transform 1s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 10px;
+            transition: transform 1s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
         #aguja-grande {
             width: 4px;
-            height: 40%;
+            height: 42%;
             background: var(--secondary);
             z-index: 10;
+            box-shadow: 0 0 10px var(--secondary);
         }
 
         #aguja-pequena {
-            width: 8px;
-            height: 25%;
+            width: 7px;
+            height: 28%;
             background: var(--primary);
             z-index: 5;
+            box-shadow: 0 0 10px var(--primary);
         }
 
         .eje-central {
             position: absolute;
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             background: #fff;
             border-radius: 50%;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 20;
-            box-shadow: 0 0 10px white;
+            box-shadow: 0 0 15px white;
         }
 
+        /* Controles de Operación */
         .controles {
             background: var(--panel);
             padding: 20px;
@@ -131,20 +170,21 @@
             align-items: center;
         }
 
-        select, input {
+        select {
             width: 100%;
-            font-size: 18px;
+            font-size: 20px;
             padding: 12px 5px;
             background: #2d3436;
             color: white;
             border: 2px solid var(--primary);
-            border-radius: 10px;
+            border-radius: 12px;
             text-align: center;
+            cursor: pointer;
         }
 
         .btn-calcular {
             grid-column: span 3;
-            margin-top: 10px;
+            margin-top: 15px;
             padding: 18px;
             font-size: 18px;
             font-weight: bold;
@@ -154,97 +194,157 @@
             border: none;
             border-radius: 12px;
             cursor: pointer;
-            width: 100%;
+            transition: 0.3s;
         }
 
         .btn-calcular:active {
-            transform: scale(0.95);
-            background: #05c46b;
+            transform: scale(0.98);
+            filter: brightness(1.2);
         }
 
         #display-resultado {
-            margin: 20px 0;
-            font-size: clamp(3em, 15vw, 5em);
+            margin: 15px 0;
+            font-size: clamp(3.5em, 12vw, 4.5em);
             color: var(--primary);
-            text-shadow: 0 0 15px rgba(0, 216, 214, 0.4);
-            font-family: serif;
+            text-shadow: 0 0 20px rgba(0, 216, 214, 0.4);
+            font-weight: bold;
         }
 
-        label {
-            font-size: 14px;
+        /* Sección Educativa */
+        .educacion-panel {
+            background: var(--panel);
+            width: 95%;
+            max-width: 700px;
+            padding: 25px;
+            border-radius: 20px;
+            margin: 30px 0;
+            border-left: 5px solid var(--primary);
+            text-align: left;
+        }
+
+        .educacion-panel h3 {
             color: var(--primary);
-            margin-bottom: 5px;
+            margin-bottom: 15px;
+            font-size: 22px;
+        }
+
+        .educacion-panel p {
+            color: #ddd;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-size: 15px;
+        }
+
+        .educacion-panel ul {
+            margin-left: 20px;
+            color: #ccc;
+        }
+
+        .educacion-panel li {
+            margin-bottom: 10px;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #333;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--primary);
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
 
     <div class="header-info">
-        <h2>Transmutador Alquímico</h2>
+        <h2>Laboratorio de Bases</h2>
+        <p style="color: var(--text-muted)">Exploración Matemática Simbólica</p>
     </div>
 
+    <!-- Selector de Base con Botones -->
     <div class="config-panel">
-        <label>Símbolos en el Reloj:</label>
-        <input type="number" id="base-input" value="5" min="2" max="12" onchange="inicializarReloj()">
+        <span class="tag">Configuración de Sistema Numérico</span>
+        <label>Símbolos en el Reloj (Base):</label>
+        <div class="base-controls">
+            <button class="btn-circle" onclick="cambiarBase(-1)">−</button>
+            <span id="base-display">5</span>
+            <button class="btn-circle" onclick="cambiarBase(1)">+</button>
+        </div>
     </div>
 
+    <!-- Reloj -->
     <div id="reloj-container">
         <div id="aguja-pequena" class="aguja"></div>
         <div id="aguja-grande" class="aguja"></div>
         <div class="eje-central"></div>
     </div>
 
+    <!-- Operaciones -->
     <div class="controles">
         <select id="v1"></select>
-        
         <select id="operacion" style="border-color: var(--secondary);">
             <option value="suma">+</option>
             <option value="mult">×</option>
             <option value="resta">-</option>
             <option value="div">÷</option>
         </select>
-
         <select id="v2"></select>
-
-        <button class="btn-calcular" onclick="ejecutar()">Calcular Destino</button>
+        <button class="btn-calcular" onclick="ejecutar()">Transmutar Resultado</button>
     </div>
 
     <div id="display-resultado">--</div>
 
+    <!-- Sección Informativa Educativa -->
+    <div class="educacion-panel">
+        <h3>¿Qué enseña esta herramienta?</h3>
+        <p>Este simulador es un recurso visual para entender conceptos fundamentales de la <strong>Ingeniería de Sistemas</strong> y las <strong>Matemáticas Computacionales</strong>:</p>
+        
+        <ul>
+            <li><strong>Sistemas No-Decimales:</strong> Permite visualizar cómo funcionan las matemáticas en bases distintas a la 10 (como binario, octal o hexadecimal) usando símbolos arbitrarios.</li>
+            <li><strong>Aritmética Modular:</strong> El reloj representa visualmente el concepto de "módulo". Al llegar al límite de la base, el ciclo se reinicia, lo cual es clave en criptografía y diseño de algoritmos.</li>
+            <li><strong>Valor Posicional:</strong> La aguja pequeña representa la "llevada" o el valor de orden superior (como las decenas en el sistema decimal), enseñando que un número es una suma de potencias de su base.</li>
+        </ul>
+
+        <h3 style="margin-top: 20px;">Aplicación en la Práctica</h3>
+        <p>En ingeniería, esto se aplica para entender el <strong>desbordamiento de memoria (overflow)</strong>: cuando un resultado excede la capacidad del sistema (base), las agujas nos muestran cómo el valor se "reinicia" o genera un acarreo al siguiente nivel jerárquico.</p>
+    </div>
+
     <script>
         const bibliotecaSimbolos = ["▽", "△", "□", "○", "☆", "☽", "☉", "☿", "♀", "♂", "♃", "♄"];
+        let baseActual = 5;
         let simbolosActuales = [];
         
         const agujaG = document.getElementById('aguja-grande');
         const agujaP = document.getElementById('aguja-pequena');
         const container = document.getElementById('reloj-container');
+        const baseDisplay = document.getElementById('base-display');
+
+        function cambiarBase(delta) {
+            const nuevaBase = baseActual + delta;
+            if (nuevaBase >= 2 && nuevaBase <= 12) {
+                baseActual = nuevaBase;
+                baseDisplay.innerText = baseActual;
+                inicializarReloj();
+            }
+        }
 
         function inicializarReloj() {
-            const base = parseInt(document.getElementById('base-input').value) || 5;
-            // Limitar base
-            const baseFinal = Math.min(Math.max(base, 2), 12);
-            document.getElementById('base-input').value = baseFinal;
-            
-            simbolosActuales = bibliotecaSimbolos.slice(0, baseFinal);
+            simbolosActuales = bibliotecaSimbolos.slice(0, baseActual);
             
             // Limpiar símbolos previos
             document.querySelectorAll('.simbolo').forEach(s => s.remove());
             
-            // Renderizado circular dinámico
-            const radio = (container.offsetWidth / 2) - 30; // Margen interno
+            const radio = (container.offsetWidth / 2) - 35;
             const centro = container.offsetWidth / 2;
 
             simbolosActuales.forEach((sim, i) => {
                 const div = document.createElement('div');
                 div.className = 'simbolo';
                 div.innerText = sim;
-                
-                // Ángulo en radianes (empezando desde arriba)
-                const angulo = (i * (360 / baseFinal)) * (Math.PI / 180);
-                
+                const angulo = (i * (360 / baseActual)) * (Math.PI / 180);
                 const x = centro + radio * Math.sin(angulo);
                 const y = centro - radio * Math.cos(angulo);
-                
                 div.style.left = `${x}px`;
                 div.style.top = `${y}px`;
                 container.appendChild(div);
@@ -256,6 +356,9 @@
         function actualizarSelectores() {
             const s1 = document.getElementById('v1');
             const s2 = document.getElementById('v2');
+            const oldV1 = s1.value;
+            const oldV2 = s2.value;
+            
             s1.innerHTML = "";
             s2.innerHTML = "";
             
@@ -264,13 +367,16 @@
                 s1.innerHTML += opt;
                 s2.innerHTML += opt;
             });
+
+            // Intentar mantener selección previa si existe en la nueva base
+            if(oldV1 < baseActual) s1.value = oldV1;
+            if(oldV2 < baseActual) s2.value = oldV2;
         }
 
         function ejecutar() {
             const n1 = parseInt(document.getElementById('v1').value);
             const n2 = parseInt(document.getElementById('v2').value);
             const op = document.getElementById('operacion').value;
-            const base = simbolosActuales.length;
             
             let total;
             switch(op) {
@@ -280,32 +386,25 @@
                 case "div": total = n2 !== 0 ? Math.floor(n1 / n2) : 0; break;
             }
 
-            // Los resultados negativos se muestran como 0 en el reloj para esta lógica
             const totalReloj = total < 0 ? 0 : total;
+            const decena = Math.floor(totalReloj / baseActual);
+            const unidad = totalReloj % baseActual;
+            const gradosPorUnidad = 360 / baseActual;
             
-            const decena = Math.floor(totalReloj / base);
-            const unidad = totalReloj % base;
-
-            const gradosPorUnidad = 360 / base;
-            
-            // Animación de las agujas
+            // Movimiento de agujas
             agujaG.style.transform = `rotate(${totalReloj * gradosPorUnidad}deg)`;
             agujaP.style.transform = `rotate(${decena * gradosPorUnidad}deg)`;
 
-            // Display del resultado
+            // Display
             if (total < 0) {
                 document.getElementById('display-resultado').innerText = "Ø";
             } else {
-                // Si la decena supera la base, ponemos un indicador de exceso (+)
-                const charDecena = decena < base ? simbolosActuales[decena] : "∞";
+                const charDecena = decena < baseActual ? simbolosActuales[decena] : "∞";
                 document.getElementById('display-resultado').innerText = charDecena + simbolosActuales[unidad];
             }
         }
 
-        // Manejar cambio de tamaño de ventana para reposicionar símbolos
         window.addEventListener('resize', inicializarReloj);
-        
-        // Inicio
         window.onload = inicializarReloj;
     </script>
 </body>
